@@ -68,6 +68,7 @@ MIN_EDGE_PCT        = 0.5       # edge minimum pour trader (%) — très agressi
 # ═══════════════════════════════════════════════════════════
 AI_ENABLED              = True      # activer l'analyse IA
 AI_PERPLEXITY_MODEL     = "sonar"   # Perplexity : sonar (avec web search)
+AI_GROQ_MODEL           = "llama-3.3-70b-versatile"  # Groq : GRATUIT + ultra rapide
 AI_OPENAI_MODEL         = "gpt-4o"  # OpenAI fallback
 AI_ANTHROPIC_MODEL      = "claude-sonnet-4-20250514"
 

@@ -252,6 +252,83 @@ def _call_anthropic(prompt, api_key):
     return content, []
 
 
+def _web_search_duckduckgo(query, max_results=5):
+    """Recherche web gratuite via DuckDuckGo HTML (zero API key)."""
+    try:
+        safe_q = urllib.parse.quote_plus(query)
+        url = f"https://html.duckduckgo.com/html/?q={safe_q}"
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+        }
+        req = urllib.request.Request(url, headers=headers)
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            html = resp.read().decode("utf-8", errors="ignore")
+
+        # Parser minimal : extraire les snippets des resultats
+        results = []
+        # Chercher les blocs de resultats (class="result__snippet")
+        parts = html.split('class="result__snippet"')
+        for part in parts[1:max_results+1]:
+            # Extraire le texte du snippet
+            start = part.find('>') + 1
+            end = part.find('</a>', start)
+            if end == -1:
+                end = part.find('</td>', start)
+            if end == -1:
+                end = start + 300
+            snippet = part[start:end]
+            # Nettoyer le HTML basique
+            import re
+            snippet = re.sub(r'<[^>]+>', ' ', snippet).strip()
+            snippet = re.sub(r'\s+', ' ', snippet)
+            if snippet and len(snippet) > 20:
+                results.append(snippet[:200])
+
+        return results
+    except Exception as e:
+        print(f"  [AI] DuckDuckGo search error: {e}")
+        return []
+
+
+def _call_groq(prompt, api_key, web_context=""):
+    """Appel Groq API (GRATUIT — Llama 3 70B ultra-rapide)."""
+    url = "https://api.groq.com/openai/v1/chat/completions"
+
+    # Enrichir le prompt avec le contexte web
+    enriched_prompt = prompt
+    if web_context:
+        enriched_prompt = f"""Here is RECENT WEB SEARCH context about this market:
+---
+{web_context}
+---
+
+Now analyze this market using both the web context above and your training knowledge:
+
+{prompt}"""
+
+    payload = {
+        "model": config.AI_GROQ_MODEL,
+        "messages": [
+            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "user", "content": enriched_prompt},
+        ],
+        "temperature": 0.1,
+        "max_tokens": 500,
+        "response_format": {"type": "json_object"},
+    }
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json",
+    }
+    data = json.dumps(payload).encode("utf-8")
+    req = urllib.request.Request(url, data=data, headers=headers, method="POST")
+    with urllib.request.urlopen(req, timeout=30) as resp:
+        result = json.loads(resp.read())
+
+    content = result["choices"][0]["message"]["content"]
+    return content, []
+
+
 def _parse_ai_response(raw_text, citations=None):
     """Parse la reponse JSON du LLM. Tolerant aux erreurs."""
     # Nettoyer le texte (parfois le LLM encadre avec ```json ... ```)
@@ -352,6 +429,7 @@ class AIAnalyst:
         # Detecter le provider et la cle (ordre de priorite)
         providers = [
             ("perplexity", "PERPLEXITY_API_KEY"),
+            ("groq",       "GROQ_API_KEY"),
             ("openai",     "OPENAI_API_KEY"),
             ("anthropic",  "ANTHROPIC_API_KEY"),
         ]
@@ -362,7 +440,8 @@ class AIAnalyst:
                 self.provider = provider_name
                 self.api_key = key
                 self.enabled = True
-                print(f"  [AI] Provider: {provider_name} (cle chargee depuis .env)")
+                free_tag = " (GRATUIT!)" if provider_name == "groq" else ""
+                print(f"  [AI] Provider: {provider_name}{free_tag} (cle chargee depuis .env)")
                 return
 
         print("  [AI] Aucune cle API trouvee dans .env — mode technique seul")
@@ -408,6 +487,16 @@ class AIAnalyst:
         try:
             if self.provider == "perplexity":
                 raw, citations = _call_perplexity(prompt, self.api_key)
+            elif self.provider == "groq":
+                # Groq = LLM gratuit + DuckDuckGo web search gratuit
+                web_results = _web_search_duckduckgo(
+                    question + " latest news " + category,
+                    max_results=5,
+                )
+                web_context = "\n".join(f"- {r}" for r in web_results) if web_results else ""
+                raw, citations = _call_groq(prompt, self.api_key, web_context)
+                if web_results:
+                    citations = ["DuckDuckGo web search"] + web_results[:3]
             elif self.provider == "openai":
                 raw, citations = _call_openai(prompt, self.api_key)
             elif self.provider == "anthropic":
