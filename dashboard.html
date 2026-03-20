@@ -148,7 +148,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:13
 
 <!-- ═══════════════ SIDEBAR ═══════════════ -->
 <aside class="sb">
-  <div class="logo"><div class="logo-dot" id="logo-dot"></div>TREND BOT v3</div>
+  <div class="logo"><div class="logo-dot" id="logo-dot"></div>TREND BOT v4 AI</div>
 
   <div class="sec">Contrôle</div>
   <div class="ctrl-box">
@@ -187,9 +187,19 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:13
 
   <div class="sec">Risk Manager</div>
   <div class="status-box">
-    <div class="st-row"><span class="st-k">Pausé</span><span class="st-v" id="sb-paused">Non</span></div>
+    <div class="st-row"><span class="st-k">Pause</span><span class="st-v" id="sb-paused">Non</span></div>
     <div class="st-row"><span class="st-k">P&L jour</span><span class="st-v" id="sb-dpnl">$0</span></div>
-    <div class="st-row"><span class="st-k">Pertes consécutives</span><span class="st-v" id="sb-closs">0</span></div>
+    <div class="st-row"><span class="st-k">Pertes consecutives</span><span class="st-v" id="sb-closs">0</span></div>
+  </div>
+
+  <div class="sec">AI Analyst</div>
+  <div class="status-box">
+    <div class="st-row"><span class="st-k">Statut</span><span class="st-v" id="sb-ai-status">Off</span></div>
+    <div class="st-row"><span class="st-k">Provider</span><span class="st-v" id="sb-ai-prov">--</span></div>
+    <div class="st-row"><span class="st-k">Appels API</span><span class="st-v" id="sb-ai-calls">0</span></div>
+    <div class="st-row"><span class="st-k">Erreurs</span><span class="st-v" id="sb-ai-err">0</span></div>
+    <div class="st-row"><span class="st-k">Latence moy.</span><span class="st-v" id="sb-ai-lat">--</span></div>
+    <div class="st-row"><span class="st-k">Cache</span><span class="st-v" id="sb-ai-cache">0</span></div>
   </div>
 
   <div class="sb-footer">
@@ -200,7 +210,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:13
 <!-- ═══════════════ MAIN ═══════════════ -->
 <main class="mn">
   <div class="topbar">
-    <div class="ptitle">POLYMARKET — <span>TREND-FOLLOWING BOT</span></div>
+    <div class="ptitle">POLYMARKET — <span>AI-POWERED TREND BOT</span></div>
     <div class="dbadge off" id="dbadge">● ARRÊTÉ</div>
   </div>
 
@@ -314,6 +324,24 @@ function render(s) {
   }
   setTextPnl('sb-dpnl', r.daily_pnl);
   setText('sb-closs', r.consecutive_losses);
+
+  // Sidebar AI
+  const ai = s.ai || {};
+  const aiStatusEl = document.getElementById('sb-ai-status');
+  if (ai.enabled) {
+    aiStatusEl.textContent = 'Actif';
+    aiStatusEl.className = 'st-v pos';
+  } else {
+    aiStatusEl.textContent = 'Off';
+    aiStatusEl.className = 'st-v warn';
+  }
+  setText('sb-ai-prov', ai.provider || '--');
+  setText('sb-ai-calls', ai.total_calls || 0);
+  const aiErrEl = document.getElementById('sb-ai-err');
+  aiErrEl.textContent = ai.total_errors || 0;
+  aiErrEl.className = 'st-v' + ((ai.total_errors || 0) > 0 ? ' neg' : '');
+  setText('sb-ai-lat', ai.avg_latency ? ai.avg_latency.toFixed(1) + 's' : '--');
+  setText('sb-ai-cache', ai.cache_size || 0);
 
   // Top metrics
   const eqEl = document.getElementById('m-eq');
@@ -445,6 +473,36 @@ function renderContent(s) {
     html += '<div class="empty-msg">Aucun signal en attente</div>';
   }
 
+  // AI Verdicts
+  const verdicts = Object.values((s.ai || {}).verdicts || {});
+  html += `<div class="sh">AI VERDICTS <span class="sh-badge">${verdicts.length}</span></div>`;
+  if (verdicts.length > 0) {
+    // Sort by abs_edge descending
+    verdicts.sort((a, b) => (b.abs_edge || 0) - (a.abs_edge || 0));
+    html += `<div class="tbl-wrap"><table class="tbl"><thead><tr>
+      <th>MARCHE</th><th>DIR.</th><th>AI PROB</th><th>MKT PRIX</th>
+      <th>EDGE</th><th>CONFIANCE</th><th>RAISONNEMENT</th><th>PROVIDER</th><th>AGE</th>
+    </tr></thead><tbody>`;
+    verdicts.forEach(v => {
+      const edgeCol = v.abs_edge >= 0.10 ? 'var(--green)' : v.abs_edge >= 0.05 ? 'var(--amber)' : 'var(--text3)';
+      const confCol = v.confidence >= 0.7 ? 'var(--green)' : v.confidence >= 0.4 ? 'var(--amber)' : 'var(--text3)';
+      html += `<tr>
+        <td><span class="qcell" title="${esc(v.question)}">${esc(v.question)}</span></td>
+        <td><span class="tag tag-${(v.direction||'').toLowerCase()}">${v.direction}</span></td>
+        <td style="font-family:var(--mono);font-size:11px;font-weight:600;color:var(--cyan)">${(v.ai_probability*100).toFixed(1)}%</td>
+        <td style="font-family:var(--mono);font-size:10px;">${(v.market_price*100).toFixed(1)}%</td>
+        <td style="font-family:var(--mono);font-size:11px;font-weight:600;color:${edgeCol}">${v.edge>=0?'+':''}${(v.edge*100).toFixed(1)}%</td>
+        <td style="font-family:var(--mono);font-size:10px;color:${confCol}">${(v.confidence*100).toFixed(0)}%</td>
+        <td style="font-size:9px;color:var(--text2);max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${esc(v.reasoning)}">${esc(v.reasoning)}</td>
+        <td style="font-size:9px;color:var(--purple);">${v.provider}</td>
+        <td style="font-family:var(--mono);font-size:9px;color:var(--text3);">${v.age_sec}s</td>
+      </tr>`;
+    });
+    html += '</tbody></table></div>';
+  } else {
+    html += '<div class="empty-msg">AI en attente de signaux' + (!(s.ai||{}).enabled ? ' (pas de cle API dans .env)' : '') + '</div>';
+  }
+
   // Trade history
   const trades = (s.portfolio.closed_trades || []).slice().reverse();
   html += `<div class="sh">HISTORIQUE DES TRADES <span class="sh-badge">${trades.length}</span></div>`;
@@ -517,7 +575,8 @@ function renderContent(s) {
       const evCls = l.event.includes('signal') ? 'sig'
         : l.event.includes('open') ? 'trade'
         : l.event.includes('close') ? 'close'
-        : l.event.includes('error') || l.event.includes('reject') ? 'err'
+        : l.event.includes('ai_') ? 'sig'
+        : l.event.includes('error') || l.event.includes('reject') || l.event.includes('block') ? 'err'
         : 'info';
       const time = l.time ? l.time.split(' ')[1] : '';
       const msg = formatLogMsg(l);
@@ -568,12 +627,16 @@ function formatLogMsg(l) {
   if (l.question) parts.push(l.question.substring(0, 50));
   if (l.direction) parts.push(l.direction);
   if (l.score) parts.push(`score:${l.score}`);
-  if (l.price) parts.push(`${(l.price*100).toFixed(0)}¢`);
+  if (l.price) parts.push(`${(l.price*100).toFixed(0)}c`);
   if (l.net_pnl !== undefined) parts.push(`P&L:$${l.net_pnl.toFixed(1)}`);
   if (l.reason) parts.push(l.reason);
+  if (l.reasoning) parts.push(l.reasoning.substring(0, 80));
+  if (l.edge !== undefined) parts.push(`edge:${(l.edge*100).toFixed(1)}%`);
+  if (l.ai_prob !== undefined) parts.push(`AI:${(l.ai_prob*100).toFixed(0)}%`);
+  if (l.confidence !== undefined) parts.push(`conf:${(l.confidence*100).toFixed(0)}%`);
   if (l.error) parts.push(l.error);
   if (l.msg) parts.push(l.msg);
-  return parts.join(' · ') || l.event;
+  return parts.join(' | ') || l.event;
 }
 
 function fmtK(n) {

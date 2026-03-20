@@ -29,6 +29,7 @@ from engine.signals import SignalEngine
 from engine.risk import RiskManager
 from engine.portfolio import Portfolio
 from engine.journal import Journal
+from engine.analyst import AIAnalyst
 
 
 class Bot:
@@ -42,6 +43,7 @@ class Bot:
         self.risk      = RiskManager()
         self.portfolio = Portfolio()
         self.journal   = Journal()
+        self.analyst   = AIAnalyst()
 
         # État
         self.running         = False
@@ -90,6 +92,7 @@ class Bot:
 
         self.portfolio     = Portfolio()
         self.risk          = RiskManager()
+        self.analyst       = AIAnalyst()
         self.cycle_count   = 0
         self.warmup_done   = False
         self.active_signals = {}
@@ -181,8 +184,8 @@ class Bot:
                     result   = self.signals.confirm(existing, trend)
 
                     if result is True:
-                        # ✓ Signal confirmé → tenter d'ouvrir
-                        self._try_open(existing, snap)
+                        # ✓ Signal confirmé → AI analysis + open
+                        self._try_open_with_ai(existing, snap, meta)
                         del self.signals.pending_signals[mid]
                         self.active_signals.pop(mid, None)
                     elif result is False:
@@ -219,6 +222,11 @@ class Bot:
             self.active_signals.pop(mid, None)
             self.journal.log("signal_expired", {"market": mid})
 
+        # ── 5b. AI proactive scan — analyse les top marches sans signal technique
+        if (self.analyst.enabled and config.AI_ANALYZE_TOP_MARKETS > 0
+                and self.cycle_count % 3 == 0):  # tous les 3 cycles (~90s)
+            self._ai_proactive_scan()
+
         # ── 6. Enregistrer l'équité
         self.portfolio.record_equity()
 
@@ -237,8 +245,80 @@ class Bot:
     # ══════════════════════════════════════════════
     # Trading
     # ══════════════════════════════════════════════
-    def _try_open(self, signal, snap):
+    def _try_open_with_ai(self, signal, snap, meta):
+        """Signal confirme → analyse AI → decision combinee → ouvrir."""
+        ai_verdict = None
+        combined_score = signal.score
+
+        # ── AI Analysis (si actif)
+        if self.analyst.enabled and config.AI_ANALYZE_ON_SIGNAL:
+            question = (meta or {}).get("question", "")
+            category = (meta or {}).get("category", "")
+            end_date = (meta or {}).get("endDate", "")
+            volume   = snap.get("vol", 0) if snap else 0
+
+            ai_verdict = self.analyst.analyze(
+                market_id=signal.market_id,
+                question=question,
+                market_price=snap["yes"] if snap else signal.price,
+                category=category,
+                volume=volume,
+                end_date=end_date,
+            )
+
+            if ai_verdict:
+                # ── Combiner score technique + AI
+                ai_confirms = (
+                    ai_verdict.direction == signal.direction
+                    and ai_verdict.abs_edge >= config.AI_MIN_EDGE_PCT / 100
+                    and ai_verdict.confidence >= config.AI_MIN_CONFIDENCE
+                )
+
+                if ai_confirms:
+                    # AI confirme le signal technique → boost
+                    combined_score = (
+                        signal.score * config.TECH_WEIGHT
+                        + (ai_verdict.abs_edge * 100) * config.AI_WEIGHT
+                        + config.AI_SCORE_BOOST
+                    )
+                    self.journal.log("ai_confirms", {
+                        "market":     signal.market_id,
+                        "question":   question[:80],
+                        "direction":  signal.direction,
+                        "ai_prob":    ai_verdict.ai_probability,
+                        "mkt_price":  ai_verdict.market_price,
+                        "edge":       round(ai_verdict.edge, 4),
+                        "confidence": ai_verdict.confidence,
+                        "combined":   round(combined_score, 2),
+                        "reasoning":  ai_verdict.reasoning[:150],
+                    })
+                else:
+                    # AI contredit ou pas assez de confiance
+                    if ai_verdict.direction != signal.direction and ai_verdict.confidence >= 0.5:
+                        # AI est confiante dans la direction opposee → BLOQUER
+                        self.journal.log("ai_blocks", {
+                            "market":    signal.market_id,
+                            "question":  question[:80],
+                            "tech_dir":  signal.direction,
+                            "ai_dir":    ai_verdict.direction,
+                            "ai_edge":   round(ai_verdict.edge, 4),
+                            "confidence": ai_verdict.confidence,
+                            "reasoning": ai_verdict.reasoning[:150],
+                        })
+                        print(f"  [AI] BLOQUE {signal.direction} sur {question[:50]} "
+                              f"(AI dit {ai_verdict.direction}, conf={ai_verdict.confidence:.0%})")
+                        return
+                    # AI pas confiante → score technique seul, pas de boost
+                    combined_score = signal.score
+
+        # ── Proceed with original _try_open logic
+        self._try_open(signal, snap, combined_score, ai_verdict)
+
+    def _try_open(self, signal, snap, combined_score=None, ai_verdict=None):
         """Tente d'ouvrir une position à partir d'un signal confirmé."""
+        if combined_score is None:
+            combined_score = signal.score
+
         # Risk check
         can_trade, reason = self.risk.check_can_trade(self.portfolio)
         if not can_trade:
@@ -259,27 +339,42 @@ class Bot:
             })
             return
 
+        # Si AI a confirme avec haut edge, augmenter la taille
+        if ai_verdict and ai_verdict.abs_edge >= 0.10 and ai_verdict.confidence >= 0.6:
+            size = min(size * 1.5, self.portfolio.capital * config.MAX_POSITION_PCT / 100)
+            self.journal.log("ai_size_boost", {
+                "market": signal.market_id,
+                "edge":   round(ai_verdict.abs_edge, 4),
+                "new_size": round(size, 2),
+            })
+
         # Exécuter le trade paper
         pos = self.portfolio.open_position(
             market_id=signal.market_id,
             direction=signal.direction,
             entry_price=signal.price,
             size=size,
-            signal_score=signal.score,
+            signal_score=combined_score,
             meta=signal.meta,
         )
 
         if pos:
-            self.journal.log("trade_opened", {
+            log_data = {
                 "market":    signal.market_id,
                 "question":  signal.meta.get("question", ""),
                 "direction": signal.direction,
                 "price":     round(pos.entry_price, 4),
-                "size":      size,
-                "score":     signal.score,
+                "size":      round(size, 2),
+                "tech_score": signal.score,
+                "combined_score": round(combined_score, 2),
                 "capital":   round(self.portfolio.capital, 2),
                 "equity":    round(self.portfolio.total_equity(), 2),
-            })
+            }
+            if ai_verdict:
+                log_data["ai_edge"]   = round(ai_verdict.edge, 4)
+                log_data["ai_conf"]   = ai_verdict.confidence
+                log_data["ai_reason"] = ai_verdict.reasoning[:100]
+            self.journal.log("trade_opened", log_data)
 
     def _check_exits(self):
         """Vérifie les conditions de sortie pour toutes les positions."""
@@ -309,10 +404,94 @@ class Bot:
                     "duration":  result["duration_hours"],
                 })
                 emoji = "✓" if result["net_pnl"] >= 0 else "✗"
-                print(f"  [BOT] {emoji} Fermé {result['direction']} | "
+                print(f"  [BOT] {emoji} Ferme {result['direction']} | "
                       f"P&L: ${result['net_pnl']:+.1f} | "
                       f"Raison: {reason} | "
                       f"{result['question'][:50]}")
+
+    def _ai_proactive_scan(self):
+        """Scan proactif AI : analyse les meilleurs marches pour trouver des edges.
+        Inspiré des top traders du leaderboard qui ont un avantage informationnel."""
+        if not self.analyst.enabled:
+            return
+
+        # Selectionner les marches les plus interessants a analyser
+        candidates = []
+        for mid in self.feed.get_all_tracked():
+            # Ignorer si deja une position
+            if mid in self.portfolio.positions:
+                continue
+            # Ignorer si deja en cache AI
+            if self.analyst.cache.get(mid):
+                continue
+
+            passed, _ = self.filter_results.get(mid, (False, []))
+            if not passed:
+                continue
+
+            snap = self.feed.get_current(mid)
+            meta = self.feed.get_meta(mid)
+            if not snap or not meta:
+                continue
+
+            # Prioriser les marches a prix incertain (30-70%) et fort volume
+            price = snap["yes"]
+            uncertainty = 1.0 - abs(price - 0.5) * 2  # max a 50%, 0 a 0/100%
+            score = uncertainty * snap.get("vol", 0)
+            candidates.append((mid, score, snap, meta))
+
+        candidates.sort(key=lambda x: x[1], reverse=True)
+
+        # Analyser les top N
+        analyzed = 0
+        for mid, _, snap, meta in candidates[:config.AI_ANALYZE_TOP_MARKETS]:
+            verdict = self.analyst.analyze(
+                market_id=mid,
+                question=meta.get("question", ""),
+                market_price=snap["yes"],
+                category=meta.get("category", ""),
+                volume=snap.get("vol", 0),
+                end_date=meta.get("endDate", ""),
+            )
+
+            if not verdict:
+                continue
+            analyzed += 1
+
+            # Si l'AI trouve un gros edge, creer un signal AI-only
+            if (verdict.abs_edge >= config.AI_MIN_EDGE_PCT / 100
+                    and verdict.confidence >= 0.5
+                    and mid not in self.signals.pending_signals):
+
+                from engine.signals import Signal
+                ai_signal = Signal(
+                    market_id=mid,
+                    direction=verdict.direction,
+                    score=config.AI_SCORE_BOOST + verdict.abs_edge * 10,
+                    components={
+                        "ai_edge": round(verdict.abs_edge, 4),
+                        "ai_confidence": verdict.confidence,
+                        "ai_only": True,
+                    },
+                    price=snap["yes"] if verdict.direction == "YES" else (1 - snap["yes"]),
+                    meta=meta,
+                )
+                ai_signal.confirmation_count = config.CONFIRMATION_PERIODS  # pre-confirme
+
+                self._try_open(ai_signal, snap, ai_signal.score, verdict)
+
+                self.journal.log("ai_proactive_trade", {
+                    "market":     mid,
+                    "question":   meta.get("question", "")[:80],
+                    "direction":  verdict.direction,
+                    "ai_prob":    verdict.ai_probability,
+                    "mkt_price":  snap["yes"],
+                    "edge":       round(verdict.edge, 4),
+                    "confidence": verdict.confidence,
+                })
+
+        if analyzed > 0:
+            print(f"  [AI] Scan proactif: {analyzed} marches analyses")
 
     # ══════════════════════════════════════════════
     # API — état complet pour le dashboard
@@ -379,6 +558,7 @@ class Bot:
             "markets_tracked": len(tracked_markets),
             "markets":         tracked_markets[:40],
             "log":             self.journal.get_recent(80),
+            "ai":              self.analyst.get_state(),
         }
 
 

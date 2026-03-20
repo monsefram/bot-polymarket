@@ -471,13 +471,13 @@ if __name__ == "__main__":
     server = http.server.ThreadingHTTPServer(("127.0.0.1", PORT), Handler)
     print(f"""
   +------------------------------------------------------+
-  |  POLYMARKET TREND-FOLLOWING BOT  v3                  |
+  |  POLYMARKET AI-POWERED TREND BOT  v4                 |
   +------------------------------------------------------+
   |  Dashboard :  http://localhost:{PORT}/dashboard        |
   |  Backtester : http://localhost:{PORT}/                 |
   |  API Bot :    http://localhost:{PORT}/bot/state         |
   +------------------------------------------------------+
-  |  Bot en mode PAPER TRADING                           |
+  |  Bot en mode PAPER TRADING + AI ANALYSIS             |
   |  Ctrl+C pour arreter                                 |
   +------------------------------------------------------+
 """)

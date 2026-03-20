@@ -64,6 +64,28 @@ SLIPPAGE_PCT        = 0.3       # slippage estimé (%)
 MIN_EDGE_PCT        = 0.5       # edge minimum pour trader (%) — très agressif
 
 # ═══════════════════════════════════════════════════════════
+# AI ANALYST (LLM + web search)
+# ═══════════════════════════════════════════════════════════
+AI_ENABLED              = True      # activer l'analyse IA
+AI_PERPLEXITY_MODEL     = "sonar"   # Perplexity : sonar (avec web search)
+AI_OPENAI_MODEL         = "gpt-4o"  # OpenAI fallback
+AI_ANTHROPIC_MODEL      = "claude-sonnet-4-20250514"
+
+AI_MIN_EDGE_PCT         = 5.0       # edge minimum AI pour trader (5%)
+AI_MIN_CONFIDENCE       = 0.3       # confiance minimum de l'IA
+AI_WEIGHT               = 0.50      # poids du score IA dans la decision (50%)
+TECH_WEIGHT             = 0.50      # poids du score technique (50%)
+
+AI_MAX_CALLS_PER_MIN    = 10        # max 10 appels API par minute
+AI_MIN_DELAY_SEC        = 3         # min 3s entre chaque appel
+AI_CACHE_SIZE           = 100       # verdicts en cache
+AI_CACHE_TTL            = 600       # 10 min de cache par verdict
+
+AI_ANALYZE_ON_SIGNAL    = True      # analyser quand signal technique detecte
+AI_ANALYZE_TOP_MARKETS  = 5         # analyser les N meilleurs marches par cycle
+AI_SCORE_BOOST          = 2.0       # bonus score quand AI confirme le technique
+
+# ═══════════════════════════════════════════════════════════
 # API & SERVER
 # ═══════════════════════════════════════════════════════════
 POLYMARKET_API      = "https://gamma-api.polymarket.com"
