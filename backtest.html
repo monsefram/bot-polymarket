@@ -1,0 +1,730 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<title>Polymarket Backtester Live</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#0a0c0f;--bg2:#0f1318;--bg3:#161b22;--bg4:#1c2330;--border:#1e2530;--border2:#2a3344;--green:#00e676;--g2:rgba(0,230,118,.12);--g3:rgba(0,230,118,.06);--red:#ff5252;--r2:rgba(255,82,82,.12);--r3:rgba(255,82,82,.06);--blue:#448aff;--b2:rgba(68,138,255,.12);--amber:#ffab40;--a2:rgba(255,171,64,.12);--purple:#b388ff;--p2:rgba(179,136,255,.12);--text:#dde3ed;--text2:#7a8799;--text3:#3d4f63;--mono:'IBM Plex Mono',monospace;--sans:'IBM Plex Sans',sans-serif;}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:13px;line-height:1.5;min-height:100vh;}
+.app{display:grid;grid-template-columns:260px 1fr;min-height:100vh;}
+.sb{background:var(--bg2);border-right:1px solid var(--border);display:flex;flex-direction:column;position:sticky;top:0;height:100vh;overflow-y:auto;}
+.logo{padding:16px;border-bottom:1px solid var(--border);font-family:var(--mono);font-size:10px;font-weight:600;letter-spacing:.18em;color:var(--green);display:flex;align-items:center;gap:8px;}
+.logo-dot{width:6px;height:6px;border-radius:50%;background:var(--green);animation:blink 2s infinite;}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.3}}
+.sec{padding:12px 14px 4px;font-size:9px;letter-spacing:.12em;color:var(--text3);text-transform:uppercase;font-family:var(--mono);}
+.ccard{margin:6px 10px;padding:11px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;}
+.crow{display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid rgba(30,37,48,.6);}
+.crow:last-child{border:none;}
+.ckey{font-size:11px;color:var(--text2);}
+.ckey small{display:block;font-size:9px;color:var(--text3);font-family:var(--mono);}
+.cinp{width:65px;padding:3px 6px;background:var(--bg4);border:1px solid var(--border2);border-radius:3px;color:var(--text);font-family:var(--mono);font-size:11px;outline:none;text-align:right;}
+.cinp:focus{border-color:var(--green);}
+.cchk{width:15px;height:15px;cursor:pointer;accent-color:var(--green);}
+.srv-box{margin:8px 10px;padding:10px 12px;border-radius:5px;border:1px solid var(--border2);background:var(--bg3);}
+.srv-row{display:flex;justify-content:space-between;align-items:center;font-family:var(--mono);font-size:10px;}
+.srv-lbl{color:var(--text3);}
+.srv-dot{width:7px;height:7px;border-radius:50%;background:var(--text3);}
+.srv-dot.ok{background:var(--green);}
+.srv-dot.err{background:var(--red);}
+.srv-detail{font-size:9px;color:var(--text3);font-family:var(--mono);margin-top:5px;line-height:1.6;}
+.run-btn{margin:8px 10px;padding:11px;border-radius:5px;background:var(--g2);border:1px solid rgba(0,230,118,.3);color:var(--green);font-family:var(--mono);font-size:11px;font-weight:600;cursor:pointer;letter-spacing:.08em;transition:all .15s;width:calc(100% - 20px);}
+.run-btn:hover:not(:disabled){background:rgba(0,230,118,.2);}
+.run-btn:disabled{opacity:.35;cursor:not-allowed;}
+.prog-wrap{margin:0 10px 8px;display:none;}
+.prog-bar{height:3px;background:var(--border2);border-radius:2px;overflow:hidden;margin-bottom:4px;}
+.prog-fill{height:100%;background:var(--green);border-radius:2px;transition:width .3s;width:0%;}
+.prog-lbl{font-size:9px;color:var(--text2);font-family:var(--mono);}
+.prog-sub{font-size:9px;color:var(--text3);font-family:var(--mono);margin-top:2px;}
+.sum-card{margin:0 10px 10px;padding:10px;background:var(--bg3);border:1px solid var(--border);border-radius:5px;display:none;}
+.srow{display:flex;justify-content:space-between;padding:3px 0;font-family:var(--mono);font-size:10px;border-bottom:1px solid rgba(30,37,48,.4);}
+.srow:last-child{border:none;}
+.sk{color:var(--text3);}
+.sv{color:var(--text);font-weight:500;}
+.sv.pos{color:var(--green);}
+.sv.neg{color:var(--red);}
+/* MAIN */
+.mn{display:flex;flex-direction:column;}
+.topbar{padding:12px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;background:var(--bg2);position:sticky;top:0;z-index:10;}
+.ptitle{font-family:var(--mono);font-size:11px;color:var(--text2);letter-spacing:.08em;}
+.ptitle span{color:var(--text);}
+.dbadge{font-size:9px;font-family:var(--mono);padding:2px 9px;border-radius:3px;border:1px solid var(--border2);color:var(--text3);background:var(--bg3);}
+.dbadge.live{background:var(--g3);border-color:rgba(0,230,118,.3);color:var(--green);}
+/* METRICS */
+.metrics{display:none;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--border);border-bottom:1px solid var(--border);}
+.mc{background:var(--bg);padding:16px 20px;}
+.mc-lbl{font-size:9px;color:var(--text3);font-family:var(--mono);letter-spacing:.1em;text-transform:uppercase;margin-bottom:4px;}
+.mc-val{font-size:22px;font-weight:500;font-family:var(--mono);margin-bottom:3px;}
+.mc-val.pos{color:var(--green);}
+.mc-val.neg{color:var(--red);}
+.mc-val.neu{color:var(--text);}
+.mc-sub{font-size:10px;color:var(--text3);font-family:var(--mono);}
+/* EQUITY */
+.eq-sec{display:none;padding:14px 20px;border-bottom:1px solid var(--border);}
+.eq-hdr{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;}
+.eq-lbl{font-size:9px;color:var(--text3);font-family:var(--mono);letter-spacing:.1em;text-transform:uppercase;}
+.eq-info{font-size:9px;color:var(--text3);font-family:var(--mono);}
+.eq-svg{width:100%;height:90px;display:block;}
+/* BREAKDOWN */
+.bd-grid{display:none;gap:1px;background:var(--border);border-bottom:1px solid var(--border);}
+.bdc{background:var(--bg);padding:14px 18px;}
+.bdc-t{font-size:9px;color:var(--text3);font-family:var(--mono);letter-spacing:.1em;text-transform:uppercase;margin-bottom:8px;}
+.bdr{display:flex;justify-content:space-between;font-size:10px;font-family:var(--mono);padding:2px 0;}
+.bdk{color:var(--text3);}
+.bdv{color:var(--text);}
+.bdv.pos{color:var(--green);}
+.bdv.neg{color:var(--red);}
+/* CALIBRATION */
+.calib-sec{display:none;padding:14px 20px;border-bottom:1px solid var(--border);}
+.calib-t{font-size:9px;color:var(--text3);font-family:var(--mono);letter-spacing:.1em;text-transform:uppercase;margin-bottom:10px;}
+.calib-wrap{display:flex;gap:4px;align-items:flex-end;height:80px;}
+.c-col{flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;}
+.c-pct{font-size:8px;font-family:var(--mono);text-align:center;}
+.c-bg{width:100%;flex:1;background:var(--border);border-radius:2px;position:relative;}
+.c-exp{position:absolute;width:100%;height:1px;background:rgba(255,255,255,.3);}
+.c-fill{position:absolute;bottom:0;width:100%;border-radius:2px 2px 0 0;}
+.c-lbl{font-size:8px;color:var(--text3);font-family:var(--mono);text-align:center;white-space:nowrap;}
+.calib-note{font-size:10px;color:var(--text2);font-family:var(--mono);margin-top:8px;}
+/* FILTER */
+.fbar{display:none;padding:9px 20px;border-bottom:1px solid var(--border);background:var(--bg2);align-items:center;gap:6px;flex-wrap:wrap;}
+.flbl{font-size:9px;color:var(--text3);font-family:var(--mono);}
+.fb{padding:3px 9px;border-radius:20px;border:1px solid var(--border2);background:transparent;color:var(--text2);font-size:10px;font-family:var(--mono);cursor:pointer;transition:all .12s;}
+.fb.active{border-color:var(--green);color:var(--green);background:var(--g3);}
+.fb:hover:not(.active){color:var(--text);}
+.sep{width:1px;height:12px;background:var(--border2);}
+.tcnt{margin-left:auto;font-size:10px;color:var(--text3);font-family:var(--mono);}
+/* TABLE */
+.tbl-wrap{overflow-x:auto;}
+.tbl{width:100%;border-collapse:collapse;font-size:11px;}
+.tbl th{padding:8px 12px;text-align:left;font-size:9px;color:var(--text3);font-family:var(--mono);letter-spacing:.08em;border-bottom:1px solid var(--border);background:var(--bg2);white-space:nowrap;}
+.tbl td{padding:8px 12px;border-bottom:1px solid var(--border);vertical-align:middle;}
+.tbl tr:hover td{background:var(--bg2);}
+.qcell{max-width:280px;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block;}
+.cat{font-size:8px;font-family:var(--mono);padding:1px 5px;border-radius:2px;display:inline-block;margin-top:2px;}
+.cat-pol{background:var(--p2);color:var(--purple);border:1px solid rgba(179,136,255,.2);}
+.cat-cry{background:var(--a2);color:var(--amber);border:1px solid rgba(255,171,64,.2);}
+.cat-fin{background:var(--b2);color:var(--blue);border:1px solid rgba(68,138,255,.2);}
+.cat-oth{background:var(--bg3);color:var(--text3);border:1px solid var(--border);}
+.stag{font-size:9px;font-family:var(--mono);padding:1px 5px;border-radius:2px;}
+.s-bond{background:rgba(0,230,118,.08);color:var(--green);border:1px solid rgba(0,230,118,.15);}
+.s-prob{background:var(--b2);color:var(--blue);border:1px solid rgba(68,138,255,.18);}
+.s-mid{background:var(--a2);color:var(--amber);border:1px solid rgba(255,171,64,.18);}
+.s-con{background:var(--p2);color:var(--purple);border:1px solid rgba(179,136,255,.18);}
+.src-real{font-size:9px;font-family:var(--mono);color:var(--green);}
+.src-est{font-size:9px;font-family:var(--mono);color:var(--text3);}
+.dyes{color:var(--green);font-family:var(--mono);font-size:10px;}
+.dno{color:var(--red);font-family:var(--mono);font-size:10px;}
+.rw{font-size:9px;font-family:var(--mono);padding:1px 5px;border-radius:2px;background:var(--g2);color:var(--green);border:1px solid rgba(0,230,118,.2);}
+.rl{font-size:9px;font-family:var(--mono);padding:1px 5px;border-radius:2px;background:var(--r2);color:var(--red);border:1px solid rgba(255,82,82,.2);}
+.pp{color:var(--green);font-family:var(--mono);font-weight:500;}
+.pn{color:var(--red);font-family:var(--mono);font-weight:500;}
+.empty{padding:60px 20px;text-align:center;color:var(--text3);font-family:var(--mono);font-size:11px;line-height:2.8;}
+.toast{position:fixed;bottom:18px;right:18px;padding:8px 14px;border-radius:5px;font-family:var(--mono);font-size:10px;opacity:0;transform:translateY(6px);transition:all .2s;pointer-events:none;z-index:99;border:1px solid;}
+.toast.show{opacity:1;transform:translateY(0);}
+.tg{background:var(--g3);border-color:rgba(0,230,118,.3);color:var(--green);}
+.tr{background:var(--r3);border-color:rgba(255,82,82,.25);color:var(--red);}
+.tb{background:var(--b2);border-color:rgba(68,138,255,.3);color:var(--blue);}
+</style>
+</head>
+<body>
+<div class="app">
+
+<aside class="sb">
+  <div class="logo"><div class="logo-dot"></div>BACKTESTER LIVE v2</div>
+
+  <div class="srv-box">
+    <div class="srv-row">
+      <span class="srv-lbl">Serveur Python</span>
+      <div class="srv-dot" id="srv-dot"></div>
+    </div>
+    <div class="srv-detail" id="srv-detail">Vérification...</div>
+  </div>
+
+  <div class="sec">Données</div>
+  <div class="ccard">
+    <div class="crow">
+      <span class="ckey">Marchés à charger<small>max depuis l'API</small></span>
+      <input class="cinp" id="c-limit" type="number" value="400" min="100" max="2000" step="100"/>
+    </div>
+    <div class="crow">
+      <span class="ckey">Volume minimum<small>USD par marché</small></span>
+      <input class="cinp" id="c-vol" type="number" value="5000" min="0" step="1000"/>
+    </div>
+  </div>
+
+  <div class="sec">Capital & Sizing</div>
+  <div class="ccard">
+    <div class="crow">
+      <span class="ckey">Capital initial<small>USDC simulé</small></span>
+      <input class="cinp" id="c-cap" type="number" value="1000" min="100" step="100"/>
+    </div>
+    <div class="crow">
+      <span class="ckey">Risque / trade<small>% du capital</small></span>
+      <input class="cinp" id="c-risk" type="number" value="5" min="1" max="25"/>
+    </div>
+    <div class="crow">
+      <span class="ckey">Kelly fraction<small>0 = risque fixe</small></span>
+      <input class="cinp" id="c-kelly" type="number" value="0.25" min="0" max="1" step="0.05"/>
+    </div>
+    <div class="crow">
+      <span class="ckey">Max / trade<small>% du capital</small></span>
+      <input class="cinp" id="c-max" type="number" value="10" min="1" max="30"/>
+    </div>
+  </div>
+
+  <div class="sec">Stratégies</div>
+  <div class="ccard">
+    <div class="crow">
+      <span class="ckey">Bond &gt;85¢ YES</span>
+      <input type="checkbox" class="cchk" id="s-bond" checked/>
+    </div>
+    <div class="crow">
+      <span class="ckey">Probable 70-85¢ YES</span>
+      <input type="checkbox" class="cchk" id="s-prob" checked/>
+    </div>
+    <div class="crow">
+      <span class="ckey">Mid 55-70¢ YES</span>
+      <input type="checkbox" class="cchk" id="s-mid" checked/>
+    </div>
+    <div class="crow">
+      <span class="ckey">Contrarian &lt;35¢ NO</span>
+      <input type="checkbox" class="cchk" id="s-con"/>
+    </div>
+  </div>
+
+  <div class="sec">Frais & Réalisme</div>
+  <div class="ccard">
+    <div class="crow">
+      <span class="ckey">Frais / trade<small>% (Polymarket ~2%)</small></span>
+      <input class="cinp" id="c-fee" type="number" value="2" min="0" max="10" step="0.5"/>
+    </div>
+    <div class="crow">
+      <span class="ckey">Slippage<small>% bid-ask spread</small></span>
+      <input class="cinp" id="c-slip" type="number" value="0.5" min="0" max="5" step="0.1"/>
+    </div>
+    <div class="crow">
+      <span class="ckey">Edge minimum<small>% pour trader</small></span>
+      <input class="cinp" id="c-edge" type="number" value="3" min="0" max="20" step="1"/>
+    </div>
+  </div>
+
+  <button class="run-btn" id="run-btn" onclick="run()" disabled>▶ LANCER LE BACKTEST</button>
+  <button class="run-btn" id="scan-btn" onclick="scanLive()" disabled style="background:rgba(68,138,255,.12);border-color:rgba(68,138,255,.3);color:var(--blue);">🔍 SCANNER MARCHÉS LIVE</button>
+
+  <div class="prog-wrap" id="prog-wrap">
+    <div class="prog-bar"><div class="prog-fill" id="prog-fill"></div></div>
+    <div class="prog-lbl" id="prog-lbl">...</div>
+    <div class="prog-sub" id="prog-sub"></div>
+  </div>
+
+  <div class="sum-card" id="sum-card">
+    <div class="srow"><span class="sk">Marchés chargés</span><span class="sv" id="s-raw">—</span></div>
+    <div class="srow"><span class="sk">Marchés résolus</span><span class="sv" id="s-res">—</span></div>
+    <div class="srow"><span class="sk">YES / NO</span><span class="sv" id="s-yn">—</span></div>
+    <div class="srow"><span class="sk">Prix réels CLOB</span><span class="sv pos" id="s-clob">—</span></div>
+    <div class="srow"><span class="sk">Prix estimés</span><span class="sv" id="s-est">—</span></div>
+    <div class="srow"><span class="sk">Trades simulés</span><span class="sv" id="s-n">—</span></div>
+    <div class="srow"><span class="sk">Win rate</span><span class="sv" id="s-wr">—</span></div>
+    <div class="srow"><span class="sk">P&L total</span><span class="sv" id="s-pnl">—</span></div>
+    <div class="srow"><span class="sk">Capital final</span><span class="sv" id="s-cap">—</span></div>
+    <div class="srow"><span class="sk">Max drawdown</span><span class="sv neg" id="s-dd">—</span></div>
+    <div class="srow"><span class="sk">Sharpe</span><span class="sv" id="s-sh">—</span></div>
+    <div class="srow"><span class="sk">Sortino</span><span class="sv" id="s-sort">—</span></div>
+    <div class="srow"><span class="sk">Frais payés</span><span class="sv neg" id="s-fees">—</span></div>
+    <div class="srow"><span class="sk">Expectancy / trade</span><span class="sv" id="s-exp">—</span></div>
+    <div class="srow"><span class="sk">Profit Factor</span><span class="sv" id="s-pf">—</span></div>
+    <div class="srow"><span class="sk">Avg Win / Loss</span><span class="sv" id="s-avgwl">—</span></div>
+  </div>
+</aside>
+
+<main class="mn">
+  <div class="topbar">
+    <div class="ptitle">POLYMARKET — <span>BACKTEST DONNÉES RÉELLES</span></div>
+    <div class="dbadge" id="dbadge">● EN ATTENTE</div>
+  </div>
+
+  <div class="metrics" id="metrics">
+    <div class="mc"><div class="mc-lbl">P&L TOTAL</div><div class="mc-val neu" id="m-pnl">—</div><div class="mc-sub" id="m-roi">—</div></div>
+    <div class="mc"><div class="mc-lbl">WIN RATE RÉEL</div><div class="mc-val neu" id="m-wr">—</div><div class="mc-sub" id="m-wsub">—</div></div>
+    <div class="mc"><div class="mc-lbl">CAPITAL FINAL</div><div class="mc-val neu" id="m-cap">—</div><div class="mc-sub" id="m-dd">—</div></div>
+    <div class="mc"><div class="mc-lbl">MARCHÉS RÉSOLUS</div><div class="mc-val neu" id="m-n">—</div><div class="mc-sub" id="m-src">—</div></div>
+  </div>
+
+  <div class="eq-sec" id="eq-sec">
+    <div class="eq-hdr">
+      <div class="eq-lbl">COURBE D'ÉQUITÉ — 100% déterministe, données Polymarket réelles</div>
+      <div class="eq-info" id="eq-info"></div>
+    </div>
+    <svg class="eq-svg" id="eq-svg" viewBox="0 0 900 90" preserveAspectRatio="none"></svg>
+  </div>
+
+  <div class="bd-grid" id="bd-grid"></div>
+
+  <div class="calib-sec" id="calib-sec">
+    <div class="calib-t">CALIBRATION — win rate observé (barre) vs probabilité d'entrée théorique (ligne blanche)</div>
+    <div class="calib-wrap" id="calib-wrap"></div>
+    <div class="calib-note" id="calib-note"></div>
+  </div>
+
+  <div class="fbar" id="fbar">
+    <span class="flbl">RÉSULTAT:</span>
+    <button class="fb active" onclick="filt('all',this)">Tous</button>
+    <button class="fb" onclick="filt('win',this)">Wins</button>
+    <button class="fb" onclick="filt('loss',this)">Losses</button>
+    <div class="sep"></div>
+    <span class="flbl">STRAT:</span>
+    <button class="fb" onclick="filt('Bond',this)">Bond</button>
+    <button class="fb" onclick="filt('Probable',this)">Probable</button>
+    <button class="fb" onclick="filt('Mid',this)">Mid</button>
+    <button class="fb" onclick="filt('Contrarian',this)">Contra</button>
+    <div class="sep"></div>
+    <span class="flbl">RÉSOLU:</span>
+    <button class="fb" onclick="filt('yes',this)">YES</button>
+    <button class="fb" onclick="filt('no',this)">NO</button>
+    <div class="tcnt" id="tcnt"></div>
+  </div>
+
+  <div class="tbl-wrap" id="tbl-wrap">
+    <div class="empty">
+      Lance d'abord :<br>
+      <code style="background:var(--bg3);padding:4px 12px;border-radius:3px;color:var(--amber);font-size:12px;">python server.py</code><br><br>
+      Puis clique <strong style="color:var(--text2)">▶ LANCER LE BACKTEST</strong><br>
+      <span style="font-size:10px;color:var(--text3)">Le serveur charge les marchés Polymarket réels (YES + NO)<br>et calcule les entrées de façon déterministe</span>
+    </div>
+  </div>
+</main>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+const SRV = 'http://localhost:8765';
+let allTrades = [], curFilt = 'all';
+
+async function checkSrv() {
+  try {
+    const r = await fetch(`${SRV}/health`, { signal: AbortSignal.timeout(2000) });
+    if (r.ok) {
+      const d = await r.json();
+      document.getElementById('srv-dot').className = 'srv-dot ok';
+      document.getElementById('srv-detail').textContent =
+        `v${d.version} connecté\nClique ▶ pour lancer le backtest`;
+      document.getElementById('run-btn').disabled = false;
+      document.getElementById('scan-btn').disabled = false;
+      return true;
+    }
+  } catch(e) {}
+  document.getElementById('srv-dot').className = 'srv-dot err';
+  document.getElementById('srv-detail').textContent =
+    'Non connecté\nLance: python server.py';
+  document.getElementById('run-btn').disabled = true;
+  document.getElementById('scan-btn').disabled = true;
+  return false;
+}
+
+function classify(p, bondOn, probOn, midOn, conOn) {
+  if (bondOn && p >= 0.85) return { strat:'Bond',       dir:'YES', sm:1.0 };
+  if (probOn && p >= 0.70) return { strat:'Probable',   dir:'YES', sm:0.8 };
+  if (midOn  && p >= 0.55) return { strat:'Mid',        dir:'YES', sm:0.6 };
+  if (conOn  && p <  0.35 && p > 0.05) return { strat:'Contrarian', dir:'NO', sm:0.5 };
+  return null;
+}
+
+async function run() {
+  if (!await checkSrv()) { showToast('Serveur non disponible', 'tr'); return; }
+
+  const btn = document.getElementById('run-btn');
+  btn.disabled = true; btn.textContent = '⟳ Chargement...';
+  showProg(true); setP(0, 'Connexion au serveur...', '');
+
+  const limit  = +document.getElementById('c-limit').value  || 400;
+  const minVol = +document.getElementById('c-vol').value    || 5000;
+  const startC = +document.getElementById('c-cap').value    || 1000;
+  const risk   = +document.getElementById('c-risk').value   || 5;
+  const kFrac  = +document.getElementById('c-kelly').value  || 0.25;
+  const maxBet = +document.getElementById('c-max').value    || 10;    const feePct  = +document.getElementById('c-fee').value    || 2;
+    const slipPct = +document.getElementById('c-slip').value   || 0.5;
+    const minEdge = +document.getElementById('c-edge').value   || 3;  const bondOn = document.getElementById('s-bond').checked;
+  const probOn = document.getElementById('s-prob').checked;
+  const midOn  = document.getElementById('s-mid').checked;
+  const conOn  = document.getElementById('s-con').checked;
+
+  try {
+    setP(5, 'Chargement des marchés depuis Polymarket...', `limit=${limit} | vol min=$${minVol}`);
+
+    const res = await fetch(
+      `${SRV}/backtest-data?limit=${limit}&min_vol=${minVol}`,
+      { signal: AbortSignal.timeout(120000) }
+    );
+    if (!res.ok) throw new Error(`Serveur HTTP ${res.status}`);
+    const payload = await res.json();
+    if (payload.error) throw new Error(payload.error);
+
+    const markets = payload.markets;
+    const stats   = payload.stats;
+
+    setP(62, `${markets.length} marchés reçus — ${stats.yes_count} YES + ${stats.no_count} NO`, '');
+    document.getElementById('s-raw').textContent  = stats.total_raw.toLocaleString();
+    document.getElementById('s-res').textContent  = markets.length.toLocaleString();
+    document.getElementById('s-yn').textContent   = `${stats.yes_count} / ${stats.no_count}`;
+    document.getElementById('s-clob').textContent = stats.clob_hits.toLocaleString();
+    document.getElementById('s-est').textContent  = stats.formula.toLocaleString();
+    await sleep(80);
+
+    // ── SIMULATION — FULLY DETERMINISTIC, ZERO Math.random()
+    let cap = startC, peak = startC, maxDD = 0;
+    const equity = [startC], pnls = [], trades = [];
+    let totalFeesPaid = 0;
+
+    for (let i = 0; i < markets.length; i++) {
+      const m = markets[i];
+      const sig = classify(m.entryProb, bondOn, probOn, midOn, conOn);
+      if (!sig) continue;
+
+      const { strat, dir, sm } = sig;
+      const rawPrice = dir === 'YES' ? m.entryProb : 1 - m.entryProb;
+
+      // ── Slippage: entrée légèrement plus chère
+      const adjPrice = Math.min(0.99, rawPrice * (1 + slipPct / 100));
+
+      // ── Edge calcul: probabilité implicite - coût réel (prix + frais)
+      const totalCost = adjPrice + (feePct / 100);
+      const impliedEdge = (rawPrice - totalCost) * 100; // en points de %
+      // Pour les strats Bond (>85¢), l'edge est faible par définition mais fiable
+      // On skip le check d'edge pour les prix > 92¢ (quasi-certains)
+      const edgeOk = rawPrice >= 0.92 || impliedEdge >= -minEdge;
+
+      // ── Position sizing avec Kelly corrigé
+      // Vrai Kelly: f* = (p*b - q) / b où p=proba win, b=cote, q=1-p
+      const estWinProb = rawPrice; // meilleure estimation = prix marché
+      const payout = (1 / adjPrice) - 1; // combien on gagne par $ investi si win
+      const kellyFull = payout > 0 ? (estWinProb * payout - (1 - estWinProb)) / payout : 0;
+      const kBet = kFrac > 0 ? Math.max(0, kFrac * kellyFull) : risk / 100;
+      const frac = Math.min(kBet, (risk / 100) * sm, maxBet / 100);
+      const size = Math.max(1, Math.round(cap * frac));
+      if (size > cap * 0.45) continue;
+
+      // ── Calcul P&L avec frais
+      const shares = size / adjPrice;
+      const fees = Math.round(size * (feePct / 100) * 100) / 100;
+      totalFeesPaid += fees;
+
+      // DETERMINISTIC OUTCOME — historical fact from Polymarket
+      const won = (dir === 'YES' && m.resolvedYes) || (dir === 'NO' && !m.resolvedYes);
+      const grossPnl = won ? Math.round(shares - size) : -size;
+      const pnl = won ? grossPnl - Math.round(fees) : grossPnl - Math.round(fees);
+
+      cap = Math.max(0, cap + pnl);
+      if (cap > peak) peak = cap;
+      const dd = peak > 0 ? (peak - cap) / peak * 100 : 0;
+      if (dd > maxDD) maxDD = dd;
+      equity.push(Math.round(cap));
+      pnls.push(pnl);
+      trades.push({ ...m, strat, dir, price: adjPrice.toFixed(3), rawPrice: rawPrice.toFixed(3),
+                    size, fees: Math.round(fees), grossPnl, won, pnl, edgeOk,
+                    impliedEdge: impliedEdge.toFixed(1) });
+
+      if (i % 30 === 0) {
+        setP(62 + Math.round(i / markets.length * 33),
+          `Simulation: ${trades.length} trades`,
+          `Capital: $${Math.round(cap)} | ${i+1}/${markets.length} marchés`);
+        await sleep(5);
+      }
+    }
+
+    setP(97, 'Calcul des statistiques...', '');
+    await sleep(60);
+    allTrades = trades;
+    renderAll(trades, equity, pnls, startC, maxDD, stats, totalFeesPaid);
+    setP(100, `✓ ${trades.length} trades — frais: $${Math.round(totalFeesPaid)} déduits`, '');
+    setTimeout(() => showProg(false), 1500);
+
+    document.getElementById('dbadge').textContent = `● POLYMARKET LIVE — ${stats.clob_hits} prix CLOB réels`;
+    document.getElementById('dbadge').className = 'dbadge live';
+    showToast(`${trades.length} trades | ${stats.clob_hits} prix réels CLOB`, 'tg');
+
+  } catch(e) {
+    setP(100, `Erreur: ${e.message}`, '');
+    showToast(e.message, 'tr');
+    document.getElementById('tbl-wrap').innerHTML =
+      `<div style="padding:30px;text-align:center;font-family:var(--mono);font-size:11px;color:var(--red);">${e.message}</div>`;
+  } finally {
+    btn.disabled = false; btn.textContent = '▶ RELANCER';
+  }
+}
+
+function renderAll(trades, equity, pnls, startC, maxDD, stats, totalFeesPaid) {
+  const wins = trades.filter(t => t.won);
+  const losses = trades.filter(t => !t.won);
+  const finalCap = equity[equity.length - 1] || startC;
+  const pnl = finalCap - startC;
+  const roi = (pnl / startC * 100).toFixed(1);
+  const wr  = trades.length ? (wins.length / trades.length * 100).toFixed(1) : '0';
+  const mean = pnls.reduce((a,b)=>a+b,0) / (pnls.length||1);
+  const vari = pnls.reduce((s,x)=>s+(x-mean)**2,0) / (pnls.length||1);
+  const sh   = vari > 0 ? (mean / Math.sqrt(vari) * Math.sqrt(252)).toFixed(2) : '—';
+
+  // Métriques avancées
+  const avgWin  = wins.length  ? wins.reduce((a,t)=>a+t.pnl,0) / wins.length : 0;
+  const avgLoss = losses.length ? Math.abs(losses.reduce((a,t)=>a+t.pnl,0) / losses.length) : 1;
+  const profitFactor = losses.length ? (wins.reduce((a,t)=>a+t.pnl,0)) / Math.abs(losses.reduce((a,t)=>a+t.pnl,0)) : 999;
+  const expectancy = trades.length ? pnl / trades.length : 0;
+
+  // Sortino ratio (downside deviation only)
+  const negPnls = pnls.filter(p => p < 0);
+  const downDev = negPnls.length > 0 ? Math.sqrt(negPnls.reduce((s,x) => s + x*x, 0) / negPnls.length) : 1;
+  const sortino = downDev > 0 ? (mean / downDev * Math.sqrt(252)).toFixed(2) : '—';
+
+  document.getElementById('s-n').textContent  = trades.length;
+  const we = document.getElementById('s-wr');
+  we.textContent = wr + '%';
+  we.className = 'sv ' + (parseFloat(wr) >= 60 ? 'pos' : parseFloat(wr) < 45 ? 'neg' : '');
+  const pe = document.getElementById('s-pnl');
+  pe.textContent = (pnl>=0?'+':'') + '$' + Math.round(pnl);
+  pe.className = 'sv ' + (pnl>=0?'pos':'neg');
+  document.getElementById('s-cap').textContent = '$' + finalCap.toLocaleString();
+  document.getElementById('s-dd').textContent  = maxDD.toFixed(1) + '%';
+  document.getElementById('s-sh').textContent  = sh;
+  document.getElementById('s-fees').textContent  = '$' + Math.round(totalFeesPaid);
+  document.getElementById('s-exp').textContent  = (expectancy>=0?'+':'') + '$' + expectancy.toFixed(1);
+  document.getElementById('s-pf').textContent  = profitFactor >= 100 ? '∞' : profitFactor.toFixed(2);
+  document.getElementById('s-avgwl').textContent  = `+$${avgWin.toFixed(0)} / -$${avgLoss.toFixed(0)}`;
+  document.getElementById('s-sort').textContent  = sortino;
+
+  const pE = document.getElementById('m-pnl');
+  pE.textContent = (pnl>=0?'+':'') + '$' + Math.round(pnl);
+  pE.className = 'mc-val ' + (pnl>=0?'pos':'neg');
+  document.getElementById('m-roi').textContent = `${roi}% ROI | Sharpe: ${sh} | Sortino: ${sortino}`;
+
+  const wE = document.getElementById('m-wr');
+  wE.textContent = wr + '%';
+  wE.className = 'mc-val ' + (parseFloat(wr)>=60?'pos':parseFloat(wr)<48?'neg':'neu');
+  document.getElementById('m-wsub').textContent = `${wins.length}W / ${losses.length}L | PF: ${profitFactor>=100?'∞':profitFactor.toFixed(1)}`;
+
+  document.getElementById('m-cap').textContent = '$' + finalCap.toLocaleString();
+  document.getElementById('m-dd').textContent  = `Max DD: ${maxDD.toFixed(1)}% | Frais: $${Math.round(totalFeesPaid)}`;
+  document.getElementById('m-n').textContent   = stats.resolved.toLocaleString();
+  document.getElementById('m-src').textContent = `${stats.clob_hits} CLOB | Expect: ${expectancy>=0?'+':''}$${expectancy.toFixed(1)}/trade`;
+
+  document.getElementById('metrics').style.display = 'grid';
+  document.getElementById('sum-card').style.display = 'block';
+  renderEquity(equity, startC);
+  renderBreakdown(trades);
+  renderCalib(trades);
+  document.getElementById('eq-sec').style.display  = 'block';
+  document.getElementById('bd-grid').style.display = 'grid';
+  document.getElementById('calib-sec').style.display = 'block';
+  document.getElementById('fbar').style.display    = 'flex';
+  renderTable(trades);
+}
+
+function renderEquity(eq, startC) {
+  const svg = document.getElementById('eq-svg');
+  const W=900,H=90,pad=5;
+  const mn=eq.reduce((a,b)=>Math.min(a,b),eq[0]);
+  const mx=eq.reduce((a,b)=>Math.max(a,b),eq[0]);
+  const rng=mx-mn||1;
+  const pts=eq.map((v,i)=>{
+    const x=pad+i/Math.max(1,eq.length-1)*(W-2*pad);
+    const y=pad+(1-(v-mn)/rng)*(H-2*pad-4);
+    return `${x.toFixed(1)},${y.toFixed(1)}`;
+  }).join(' ');
+  const col=eq[eq.length-1]>=startC?'#00e676':'#ff5252';
+  const by=pad+(1-(startC-mn)/rng)*(H-2*pad-4);
+  svg.innerHTML=`<defs><linearGradient id="g" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="${col}" stop-opacity=".15"/><stop offset="100%" stop-color="${col}" stop-opacity=".01"/></linearGradient></defs>
+<line x1="${pad}" y1="${by.toFixed(1)}" x2="${W-pad}" y2="${by.toFixed(1)}" stroke="rgba(255,255,255,.08)" stroke-width="1" stroke-dasharray="6,4"/>
+<polyline points="${pts}" fill="none" stroke="${col}" stroke-width="1.8" stroke-linejoin="round"/>`;
+  document.getElementById('eq-info').textContent=`$${mn.toLocaleString()} → $${mx.toLocaleString()} | ${eq.length-1} trades`;
+}
+
+function renderBreakdown(trades) {
+  const exp={Bond:'~87%',Probable:'~77%',Mid:'~62%',Contrarian:'~68%'};
+  const parts=['Bond','Probable','Mid','Contrarian'].map(s=>{
+    const st=trades.filter(t=>t.strat===s);
+    if(!st.length) return '';
+    const w=st.filter(t=>t.won).length;
+    const wr=(w/st.length*100).toFixed(0);
+    const pnl=st.reduce((a,t)=>a+t.pnl,0);
+    const clob=st.filter(t=>t.source==='clob').length;
+    return `<div class="bdc"><div class="bdc-t">${s}</div>
+      <div class="bdr"><span class="bdk">Trades</span><span class="bdv">${st.length}</span></div>
+      <div class="bdr"><span class="bdk">Win rate</span><span class="bdv ${parseFloat(wr)>=60?'pos':parseFloat(wr)<45?'neg':''}">${wr}% <small style="color:var(--text3)">(th. ${exp[s]})</small></span></div>
+      <div class="bdr"><span class="bdk">P&L</span><span class="bdv ${pnl>=0?'pos':'neg'}">${pnl>=0?'+':''}$${Math.round(pnl)}</span></div>
+      <div class="bdr"><span class="bdk">Prix CLOB</span><span class="bdv pos">${clob}/${st.length}</span></div>
+    </div>`;
+  }).filter(Boolean);
+  const g=document.getElementById('bd-grid');
+  g.innerHTML=parts.join('');
+  g.style.gridTemplateColumns=`repeat(${parts.length},1fr)`;
+}
+
+function renderCalib(trades) {
+  const bkts=[
+    {l:'55-65¢',mn:.55,mx:.65},{l:'65-70¢',mn:.65,mx:.70},
+    {l:'70-75¢',mn:.70,mx:.75},{l:'75-80¢',mn:.75,mx:.80},
+    {l:'80-85¢',mn:.80,mx:.85},{l:'85-90¢',mn:.85,mx:.90},
+    {l:'>90¢',  mn:.90,mx:1.0}
+  ];
+  document.getElementById('calib-wrap').innerHTML=bkts.map(b=>{
+    const bt=trades.filter(t=>{
+      const ep=t.dir==='YES'?t.entryProb:1-t.entryProb;
+      return ep>=b.mn&&ep<b.mx;
+    });
+    if(!bt.length) return `<div class="c-col"><div class="c-bg"></div><div class="c-lbl">${b.l}</div><div class="c-pct" style="color:var(--text3)">—</div></div>`;
+    const rWr=bt.filter(t=>t.won).length/bt.length*100;
+    const eWr=((b.mn+Math.min(b.mx,.99))/2)*100;
+    const col=Math.abs(rWr-eWr)<10?'#00e676':Math.abs(rWr-eWr)<20?'#ffab40':'#ff5252';
+    return `<div class="c-col">
+      <div class="c-pct" style="color:${col}">${rWr.toFixed(0)}%</div>
+      <div class="c-bg">
+        <div class="c-exp" style="bottom:${eWr.toFixed(0)}%"></div>
+        <div class="c-fill" style="height:${rWr.toFixed(0)}%;background:${col}"></div>
+      </div>
+      <div class="c-lbl">${b.l}</div>
+      <div class="c-lbl" style="color:var(--text3)">${bt.length}t</div>
+    </div>`;
+  }).join('');
+  document.getElementById('calib-note').textContent=
+    'barre = win rate réel observé | ligne blanche = probabilité attendue | si alignées, le marché est bien calibré';
+}
+
+function filt(f, btn) {
+  curFilt=f;
+  document.querySelectorAll('.fb').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  renderTable(allTrades);
+}
+
+function renderTable(trades) {
+  let f=[...trades];
+  if(curFilt==='win')  f=trades.filter(t=>t.won);
+  else if(curFilt==='loss') f=trades.filter(t=>!t.won);
+  else if(curFilt==='yes')  f=trades.filter(t=>t.resolvedYes);
+  else if(curFilt==='no')   f=trades.filter(t=>!t.resolvedYes);
+  else if(['Bond','Probable','Mid','Contrarian'].includes(curFilt))
+    f=trades.filter(t=>t.strat===curFilt);
+
+  document.getElementById('tcnt').textContent=`${f.length} trades`;
+  const wrap=document.getElementById('tbl-wrap');
+  if(!f.length){
+    wrap.innerHTML='<div style="padding:30px;text-align:center;color:var(--text3);font-family:var(--mono);font-size:11px;">Aucun trade</div>';
+    return;
+  }
+  const cc=c=>c==='Politics'?'cat-pol':c==='Crypto'?'cat-cry':(c==='Finance'||c==='Economics')?'cat-fin':'cat-oth';
+  const sc=s=>s==='Bond'?'s-bond':s==='Probable'?'s-prob':s==='Mid'?'s-mid':'s-con';
+  const pc=p=>p>=.80?'prob-hi':p>=.60?'prob-mid':'prob-lo';
+  wrap.innerHTML=`<table class="tbl"><thead><tr>
+    <th>MARCHÉ (Polymarket réel)</th>
+    <th>ENTRÉE</th><th>SOURCE</th>
+    <th>DIR.</th><th>STRAT.</th><th>MISE</th><th>FRAIS</th>
+    <th>RÉSOLU</th><th>RÉSULTAT</th><th>P&L</th>
+  </tr></thead><tbody>${f.slice(0,500).map(t=>`<tr>
+    <td><span class="qcell" title="${t.question}">${t.question}</span><span class="cat ${cc(t.category)}">${t.category}</span></td>
+    <td class="${pc(t.entryProb)}">${Math.round(t.entryProb*100)}¢</td>
+    <td class="${t.source==='clob'?'src-real':'src-est'}">${t.source==='clob'?'● CLOB':'○ formule'}</td>
+    <td><span class="${t.dir==='YES'?'dyes':'dno'}">${t.dir}</span></td>
+    <td><span class="stag ${sc(t.strat)}">${t.strat}</span></td>
+    <td style="font-family:var(--mono);color:var(--text2);">$${t.size}</td>
+    <td style="font-family:var(--mono);color:var(--red);font-size:10px;">-$${t.fees||0}</td>
+    <td style="font-size:10px;font-family:var(--mono);color:${t.resolvedYes?'var(--green)':'var(--red)'};">${t.resolvedYes?'YES':'NO'}</td>
+    <td><span class="${t.won?'rw':'rl'}">${t.won?'WIN':'LOSS'}</span></td>
+    <td class="${t.pnl>=0?'pp':'pn'}">${t.pnl>=0?'+':''}$${Math.round(t.pnl)}</td>
+  </tr>`).join('')}</tbody></table>
+  ${f.length>500?`<div style="padding:10px 12px;font-size:10px;color:var(--text3);font-family:var(--mono);">500/${f.length} affichés</div>`:''}`;
+}
+
+function showProg(v){document.getElementById('prog-wrap').style.display=v?'block':'none';}
+function setP(p,l,s){
+  document.getElementById('prog-fill').style.width=p+'%';
+  document.getElementById('prog-lbl').textContent=l;
+  document.getElementById('prog-sub').textContent=s||'';
+}
+function sleep(ms){return new Promise(r=>setTimeout(r,ms));}
+
+// ── SCANNER LIVE ──
+async function scanLive() {
+  if (!await checkSrv()) { showToast('Serveur non disponible', 'tr'); return; }
+
+  const btn = document.getElementById('scan-btn');
+  btn.disabled = true; btn.textContent = '⟳ Scan en cours...';
+  showProg(true); setP(10, 'Scan des marchés actifs Polymarket...', '');
+
+  try {
+    const minVol = +document.getElementById('c-vol').value || 10000;
+    const res = await fetch(
+      `${SRV}/scan?limit=200&min_vol=${minVol}`,
+      { signal: AbortSignal.timeout(60000) }
+    );
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    if (data.error) throw new Error(data.error);
+
+    const opps = data.opportunities;
+    setP(90, `${opps.length} opportunités trouvées`, '');
+    await sleep(100);
+
+    document.getElementById('dbadge').textContent = `● SCANNER LIVE — ${opps.length} opportunités`;
+    document.getElementById('dbadge').className = 'dbadge live';
+
+    // Hide backtest-specific sections
+    document.getElementById('metrics').style.display = 'none';
+    document.getElementById('eq-sec').style.display = 'none';
+    document.getElementById('bd-grid').style.display = 'none';
+    document.getElementById('calib-sec').style.display = 'none';
+    document.getElementById('fbar').style.display = 'none';
+
+    // Render scanner results
+    const wrap = document.getElementById('tbl-wrap');
+    if (!opps.length) {
+      wrap.innerHTML = '<div style="padding:30px;text-align:center;color:var(--text3);font-family:var(--mono);">Aucune opportunité trouvée — essaie de baisser le volume minimum</div>';
+    } else {
+      const cc = c => c==='Politics'?'cat-pol':c==='Crypto'?'cat-cry':(c==='Finance'||c==='Economics')?'cat-fin':'cat-oth';
+      const sc = s => s==='Bond'?'s-bond':s==='Probable'?'s-prob':s==='Mid'?'s-mid':'s-con';
+      wrap.innerHTML = `
+        <div style="padding:12px 20px;background:var(--bg2);border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px;">
+          <span style="font-size:9px;color:var(--text3);font-family:var(--mono);letter-spacing:.1em;">🔍 SCANNER LIVE — ${opps.length} OPPORTUNITÉS | Volume min: $${minVol.toLocaleString()}</span>
+          <span style="margin-left:auto;font-size:9px;color:var(--amber);font-family:var(--mono);">⚠ Les prix sont indicatifs — vérifie sur polymarket.com avant de trader</span>
+        </div>
+        <table class="tbl"><thead><tr>
+          <th>MARCHÉ</th><th>YES</th><th>NO</th><th>SIGNAL</th>
+          <th>POTENTIEL</th><th>VOLUME</th><th>LIQUIDITÉ</th><th>SCORE</th>
+        </tr></thead><tbody>${opps.map(o=>`<tr>
+          <td>
+            <span class="qcell" title="${o.question}">${o.question}</span>
+            <span class="cat ${cc(o.category)}">${o.category}</span>
+            ${o.slug ? `<a href="https://polymarket.com/event/${encodeURIComponent(o.slug)}" target="_blank" rel="noopener noreferrer" style="font-size:8px;color:var(--blue);font-family:var(--mono);text-decoration:none;margin-left:4px;">↗ PM</a>` : ''}
+          </td>
+          <td style="font-family:var(--mono);color:var(--green);">${Math.round(o.yesPrice*100)}¢</td>
+          <td style="font-family:var(--mono);color:var(--red);">${Math.round(o.noPrice*100)}¢</td>
+          <td><span class="stag ${sc(o.bestSignal.strat)}">${o.bestSignal.strat}</span> <span class="${o.bestSignal.dir==='YES'?'dyes':'dno'}">${o.bestSignal.dir}</span></td>
+          <td style="font-family:var(--mono);color:var(--amber);">+${o.bestSignal.potential}%</td>
+          <td style="font-family:var(--mono);color:var(--text2);">$${o.volume.toLocaleString()}</td>
+          <td style="font-family:var(--mono);color:var(--text2);">$${o.liquidity.toLocaleString()}</td>
+          <td style="font-family:var(--mono);color:var(--purple);">${o.score.toLocaleString()}</td>
+        </tr>`).join('')}</tbody></table>`;
+    }
+
+    setP(100, `✓ ${opps.length} opportunités live`, '');
+    setTimeout(() => showProg(false), 1200);
+    showToast(`${opps.length} marchés actifs analysés`, 'tb');
+
+  } catch(e) {
+    setP(100, `Erreur: ${e.message}`, '');
+    showToast(e.message, 'tr');
+  } finally {
+    btn.disabled = false; btn.textContent = '🔍 SCANNER MARCHÉS LIVE';
+  }
+}
+
+let _tt;
+function showToast(msg,type){
+  const el=document.getElementById('toast');
+  el.textContent=msg;el.className=`toast show ${type}`;
+  clearTimeout(_tt);_tt=setTimeout(()=>el.classList.remove('show'),4000);
+}
+
+checkSrv();
+setInterval(checkSrv, 5000);
+</script>
+</body>
+</html>
